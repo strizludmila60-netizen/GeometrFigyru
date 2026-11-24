@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта знань: Геометричні фігури</title>
+    <!-- Підключення Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Шрифт Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Іконки Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            background-color: #0f172a; /* Slate 900 */
+        }
+        
+        /* Сітка на фоні полотна */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        }
+
+        /* Стилізація повзунків */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+
+        /* Плавні переходи для вузлів */
+        .node-card {
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .node-card:hover {
+            transform: translate(-50%, -50%) scale(1.06);
+            z-index: 20;
+        }
+        .node-card.active {
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.6), 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            z-index: 25;
+        }
+        
+        /* Анімація пунктирних ліній */
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -20;
+            }
+        }
+        .animate-line {
+            stroke-dasharray: 6, 4;
+            animation: dash 1s linear infinite;
+        }
+
+        /* Кастомний скролбар для бічної панелі */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="text-slate-100 h-screen w-screen flex flex-col">
+
+    <!-- Верхня панель навігації -->
+    <header class="h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between z-30 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="bg-sky-500/20 text-sky-400 p-2 rounded-xl border border-sky-500/30">
+                <i data-lucide="shapes" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm sm:text-base tracking-tight text-white">Геометричні фігури</h1>
+                <p class="text-xs text-slate-400 hidden sm:block">Інтерактивна карта знань та 2D/3D симулятор</p>
+            </div>
+        </div>
+
+        <!-- Панель пошуку та інструментів -->
+        <div class="flex items-center gap-2 sm:gap-3">
+            <div class="relative hidden md:block">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="text" id="searchInput" placeholder="Пошук фігури..." 
+                    class="bg-slate-800/80 border border-slate-700 text-sm rounded-xl pl-9 pr-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors w-48 lg:w-64">
+            </div>
+
+            <button id="btnQuiz" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium px-3 py-1.5 rounded-xl transition-all shadow-lg shadow-indigo-500/20">
+                <i data-lucide="brain-circuit" class="w-4 h-4"></i>
+                <span>Перевірити знання</span>
+            </button>
+
+            <button id="btnResetView" title="Центрувати карту" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Основна робоча область -->
+    <main class="flex-1 relative flex overflow-hidden">
+        
+        <!-- Інтерактивне полотно карти знань (Pan & Zoom) -->
+        <div id="canvasViewport" class="flex-1 h-full relative overflow-hidden bg-grid cursor-grab active:cursor-grabbing">
+            <!-- Контейнер, який масштабується та переміщується -->
+            <div id="mindmapWorld" class="absolute top-0 left-0 origin-top-left transition-transform duration-75" style="width: 2400px; height: 1800px;">
+                <!-- SVG шар для ліній зв'язку -->
+                <svg id="connectionsLayer" class="absolute inset-0 w-full h-full pointer-events-none"></svg>
+                <!-- Шар для вузлів -->
+                <div id="nodesLayer" class="absolute inset-0 w-full h-full"></div>
+            </div>
+
+            <!-- Підказка керування внизу зліва -->
+            <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 text-xs text-slate-400 flex items-center gap-4 pointer-events-none z-10">
+                <span class="flex items-center gap-1.5"><i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-sky-400"></i> Клік — деталі та симулятор</span>
+                <span class="hidden sm:flex items-center gap-1.5"><i data-lucide="move" class="w-3.5 h-3.5 text-emerald-400"></i> Перетягування — рух</span>
+                <span class="hidden md:flex items-center gap-1.5"><i data-lucide="zoom-in" class="w-3.5 h-3.5 text-amber-400"></i> Колесо — масштаб</span>
+            </div>
+
+            <!-- Кнопки масштабування внизу по центру/справа -->
+            <div class="absolute bottom-4 right-4 md:right-[400px] flex flex-col gap-1.5 z-10 transition-all duration-300" id="zoomControls">
+                <button id="zoomIn" class="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 shadow-lg"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                <button id="zoomOut" class="p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 shadow-lg"><i data-lucide="minus" class="w-4 h-4"></i></button>
+            </div>
+        </div>
+
+        <!-- Права бічна панель: Інспектор та Інтерактивний Симулятор -->
+        <aside id="inspectorPanel" class="w-full md:w-[380px] lg:w-[420px] bg-slate-900/95 backdrop-blur-xl border-l border-slate-800 flex flex-col z-20 absolute md:relative inset-y-0 right-0 transform translate-x-full md:translate-x-0 transition-transform duration-300 shadow-2xl">
+            
+            <!-- Кнопка закриття на мобільних пристроях -->
+            <div class="flex items-center justify-between p-4 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                    <span id="nodeCategoryBadge" class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                        Геометрія
+                    </span>
+                </div>
+                <button id="closeInspector" class="md:hidden p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Контент інспектора -->
+            <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                
+                <!-- Заголовок та опис -->
+                <div>
+                    <h2 id="nodeTitle" class="text-2xl font-bold text-white mb-2">Геометрія</h2>
+                    <p id="nodeDescription" class="text-sm text-slate-300 leading-relaxed">
+                        Розділ математики, що вивчає просторові відношення, форми, розміри та властивості фігур. Оберіть будь-який вузол на карті, щоб дослідити його властивості.
+                    </p>
+                </div>
+
+                <!-- Інтерактивний Canvas Симулятора -->
+                <div id="simulatorBox" class="bg-slate-950 rounded-2xl border border-slate-800 p-4 flex flex-col items-center relative overflow-hidden">
+                    <div class="w-full flex justify-between items-center mb-2">
+                        <span class="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                            <i data-lucide="sliders" class="w-3.5 h-3.5 text-sky-400"></i> Інтерактивна модель
+                        </span>
+                        <span id="simHint" class="text-[11px] text-slate-500">Змінюйте параметри нижче</span>
+                    </div>
+                    
+                    <!-- Полотно для малювання 2D/3D фігури -->
+                    <canvas id="simCanvas" width="320" height="220" class="w-full h-[220px] rounded-xl bg-slate-900/50 cursor-move"></canvas>
+                </div>
+
+                <!-- Панель керування параметрами (Повзунки) -->
+                <div id="controlsContainer" class="space-y-4 bg-slate-800/40 p-4 rounded-2xl border border-slate-800/80 hidden">
+                    <!-- Генерується динамічно через JS -->
+                </div>
+
+                <!-- Живі розрахунки (Площа, Периметр, Об'єм) -->
+                <div id="calculationsContainer" class="grid grid-cols-2 gap-3 hidden">
+                    <!-- Генерується динамічно через JS -->
+                </div>
+
+                <!-- Формули та властивості -->
+                <div id="formulasSection" class="space-y-3">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="function-square" class="w-4 h-4 text-emerald-400"></i> Основні формули та факти
+                    </h3>
+                    <div id="formulasList" class="space-y-2">
+                        <!-- Список формул -->
+                    </div>
+                </div>
+
+                <!-- Швидкий перехід до дочірніх/пов'язаних вузлів -->
+                <div id="relatedSection" class="space-y-2 pt-2 border-t border-slate-800">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Пов'язані теми:</h3>
+                    <div id="relatedChips" class="flex flex-wrap gap-2"></div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- Модальне вікно Вікторини (Тренажер) -->
+        <div id="quizModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center gap-2 text-indigo-400 font-semibold">
+                        <i data-lucide="award" class="w-5 h-5"></i>
+                        <span>Геометричний тренажер</span>
+                    </div>
+                    <button id="closeQuiz" class="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div id="quizContent">
+                    <div class="flex justify-between text-xs text-slate-400 mb-2">
+                        <span id="quizProgress">Питання 1 з 5</span>
+                        <span id="quizScore">Бали: 0</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full mb-5 overflow-hidden">
+                        <div id="quizProgressBar" class="bg-indigo-500 h-full transition-all duration-300" style="width: 20%"></div>
+                    </div>
+
+                    <h3 id="quizQuestion" class="text-base font-medium text-white mb-4 leading-snug"></h3>
+                    <div id="quizOptions" class="space-y-2.5 mb-5"></div>
+                    <div id="quizFeedback" class="text-sm p-3 rounded-xl hidden mb-4"></div>
+
+                    <button id="nextQuestionBtn" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-colors hidden">
+                        Наступне питання
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. БАЗА ЗНАНЬ (ДАНІ КАРТИ)
+        // ==========================================
+        const knowledgeData = [
+            {
+                id: 'root',
+                title: 'Геометричні фігури',
+                category: 'Центральна тема',
+                color: 'sky',
+                x: 1200, y: 900,
+                parentId: null,
+                icon: 'shapes',
+                description: 'Множина точок на площині або в просторі, яка утворює певну форму. Геометрія поділяється на планіметрію (2D фігури на площині) та стереометрію (3D тіла в просторі).',
+                formulas: [
+                    { label: 'Планіметрія (2D)', val: 'Мають довжину та ширину (площу і периметр)' },
+                    { label: 'Стереометрія (3D)', val: 'Мають довжину, ширину та висоту (об’єм)' }
+                ],
+                simType: 'overview'
+            },
+            // --- ГІЛКА 1: ПЛОСКІ ФІГУРИ (2D) ---
+            {
+                id: '2d',
+                title: 'Плоскі фігури (2D)',
+                category: 'Планіметрія',
+                color: 'emerald',
+                x: 750, y: 650,
+                parentId: 'root',
+                icon: 'square',
+                description: 'Фігури, усі точки яких лежать в одній площині. Основні характеристики — периметр (P) та площа (S).',
+                formulas: [
+                    { label: 'Периметр (P)', val: 'Сума довжин усіх сторін фігури' },
+                    { label: 'Площа (S)', val: 'Величина частини площини, яку займає фігура' }
+                ],
+                simType: '2d_overview'
+            },
+            {
+                id: 'triangles',
+                title: 'Трикутники',
+                category: 'Многокутники',
+                color: 'emerald',
+                x: 420, y: 420,
+                parentId: '2d',
+                icon: 'triangle',
+                description: 'Многокутник із трьома сторонами та трьома кутами. Сума внутрішніх кутів будь-якого трикутника на площині завжди дорівнює 180°.',
+                formulas: [
+                    { label: 'Сума кутів', val: 'α + β + γ = 180°' },
+                    { label: 'Площа (за основою та висотою)', val: 'S = ½ · a · h' },
+                    { label: 'Теорема Піфагора (прямокутний)', val: 'c² = a² + b²' }
+                ],
+                simType: 'triangle',
+                params: [
+                    { id: 'base', label: 'Основа (a)', min: 40, max: 180, val: 120, unit: 'см' },
+                    { id: 'height', label: 'Висота (h)', min: 40, max: 150, val: 100, unit: 'см' },
+                    { id: 'skew', label: 'Зміщення вершини', min: -60, max: 60, val: 0, unit: '' }
+                ]
+            },
+            {
+                id: 'quadrilaterals',
+                title: 'Чотирикутники',
+                category: 'Многокутники',
+                color: 'emerald',
+                x: 420, y: 720,
+                parentId: '2d',
+                icon: 'box-select',
+                description: 'Геометрична фігура, що складається з чотирьох точок (вершин) і чотирьох відрізків (сторін), які послідовно їх з’єднують. Сума кутів завжди дорівнює 360°.',
+                formulas: [
+                    { label: 'Сума кутів', val: 'α + β + γ + δ = 360°' },
+                    { label: 'Периметр', val: 'P = a + b + c + d' }
+                ],
+                simType: 'quad_overview'
+            },
+            {
+                id: 'rectangle',
+                title: 'Прямокутник і Квадрат',
+                category: 'Чотирикутники',
+                color: 'teal',
+                x: 160, y: 620,
+                parentId: 'quadrilaterals',
+                icon: 'rectangle-horizontal',
+                description: 'Паралелограм, у якого всі кути прямі (по 90°). Якщо всі сторони рівні — це квадрат.',
+                formulas: [
+                    { label: 'Площа прямокутника', val: 'S = a · b' },
+                    { label: 'Периметр прямокутника', val: 'P = 2 · (a + b)' },
+                    { label: 'Діагональ', val: 'd = √(a² + b²)' }
+                ],
+                simType: 'rectangle',
+                params: [
+                    { id: 'width', label: 'Ширина (a)', min: 40, max: 180, val: 140, unit: 'см' },
+                    { id: 'height', label: 'Висота (b)', min: 40, max: 140, val: 90, unit: 'см' }
+                ]
+            },
+            {
+                id: 'rhombus',
+                title: 'Ромб і Паралелограм',
+                category: 'Чотирикутники',
+                color: 'teal',
+                x: 160, y: 840,
+                parentId: 'quadrilaterals',
+                icon: 'diamond',
+                description: 'Чотирикутник, протилежні сторони якого попарно паралельні. У ромба всі сторони рівні, а діагоналі перетинаються під прямим кутом.',
+                formulas: [
+                    { label: 'Площа паралелограма', val: 'S = a · h' },
+                    { label: 'Площа ромба (через діагоналі)', val: 'S = (d₁ · d₂) / 2' }
+                ],
+                simType: 'parallelogram',
+                params: [
+                    { id: 'side', label: 'Основа (a)', min: 50, max: 160, val: 120, unit: 'см' },
+                    { id: 'height', label: 'Висота (h)', min: 40, max: 130, val: 85, unit: 'см' },
+                    { id: 'angle', label: 'Кут нахилу (α)', min: 35, max: 90, val: 65, unit: '°' }
+                ]
+            },
+            {
+                id: 'circle',
+                title: 'Коло та Круг',
+                category: 'Криволінійні фігури',
+                color: 'emerald',
+                x: 680, y: 340,
+                parentId: '2d',
+                icon: 'circle',
+                description: 'Коло — замкнена крива, всі точки якої рівновіддалені від центра. Круг — частина площини, обмежена колом.',
+                formulas: [
+                    { label: 'Довжина кола (C)', val: 'C = 2 · π · R' },
+                    { label: 'Площа круга (S)', val: 'S = π · R²' },
+                    { label: 'Діаметр (D)', val: 'D = 2 · R' }
+                ],
+                simType: 'circle',
+                params: [
+                    { id: 'radius', label: 'Радіус (R)', min: 25, max: 85, val: 65, unit: 'см' }
+                ]
+            },
+
+            // --- ГІЛКА 2: ОБ'ЄМНІ ТІЛА (3D) ---
+            {
+                id: '3d',
+                title: 'Об’ємні тіла (3D)',
+                category: 'Стереометрія',
+                color: 'amber',
+                x: 1650, y: 650,
+                parentId: 'root',
+                icon: 'box',
+                description: 'Просторові геометричні фігури, обмежені замкненою поверхнею. Поділяються на многогранники та тіла обертання.',
+                formulas: [
+                    { label: 'Об’єм (V)', val: 'Кількість простору, яку займає тіло' },
+                    { label: 'Площа поверхні (Sпов)', val: 'Сума площ усіх граней або поверхонь' }
+                ],
+                simType: '3d_overview'
+            },
+            {
+                id: 'polyhedra',
+                title: 'Многогранники',
+                category: '3D Тіла',
+                color: 'amber',
+                x: 1950, y: 420,
+                parentId: '3d',
+                icon: 'hexagon',
+                description: 'Тіла, поверхня яких складається зі скінченної кількості плоских многокутників (граней). Теорема Ейлера: В - Р + Г = 2.',
+                formulas: [
+                    { label: 'Формула Ейлера', val: 'Вершини - Ребра + Грані = 2' }
+                ],
+                simType: 'poly_overview'
+            },
+            {
+                id: 'cube',
+                title: 'Куб і Паралелепіпед',
+                category: 'Многогранники',
+                color: 'orange',
+                x: 2200, y: 300,
+                parentId: 'polyhedra',
+                icon: 'cuboid',
+                description: 'Прямокутний паралелепіпед має 6 прямокутних граней. Куб — це паралелепіпед, у якого всі ребра рівні (грані — квадрати).',
+                formulas: [
+                    { label: 'Об’єм паралелепіпеда', val: 'V = a · b · c' },
+                    { label: 'Об’єм куба', val: 'V = a³' },
+                    { label: 'Площа поверхні куба', val: 'S = 6 · a²' }
+                ],
+                simType: 'cube3d',
+                params: [
+                    { id: 'size', label: 'Ребро куба (a)', min: 30, max: 90, val: 65, unit: 'см' },
+                    { id: 'rotY', label: 'Обертання по горизонталі', min: 0, max: 360, val: 45, unit: '°' },
+                    { id: 'rotX', label: 'Нахил по вертикалі', min: -60, max: 60, val: 25, unit: '°' }
+                ]
+            },
+            {
+                id: 'pyramid',
+                title: 'Піраміда',
+                category: 'Многогранники',
+                color: 'orange',
+                x: 2200, y: 530,
+                parentId: 'polyhedra',
+                icon: 'pyramid',
+                description: 'Многогранник, основа якого — многокутник, а бічні грані — трикутники, що мають спільну вершину.',
+                formulas: [
+                    { label: 'Об’єм піраміди', val: 'V = ⅓ · Sосн · h' },
+                    { label: 'Площа повної поверхні', val: 'S = Sосн + Sбіч' }
+                ],
+                simType: 'pyramid3d',
+                params: [
+                    { id: 'base', label: 'Сторона основи (a)', min: 40, max: 110, val: 80, unit: 'см' },
+                    { id: 'height', label: 'Висота (h)', min: 40, max: 120, val: 90, unit: 'см' },
+                    { id: 'rotY', label: 'Обертання', min: 0, max: 360, val: 35, unit: '°' }
+                ]
+            },
+            {
+                id: 'solids_of_revolution',
+                title: 'Тіла обертання',
+                category: '3D Тіла',
+                color: 'amber',
+                x: 1950, y: 820,
+                parentId: '3d',
+                icon: 'cylinder',
+                description: 'Об’ємні тіла, що виникають при обертанні плоских геометричних фігур навколо певної осі.',
+                formulas: [
+                    { label: 'Циліндр', val: 'Обертання прямокутника навколо сторони' },
+                    { label: 'Конус', val: 'Обертання прямокутного трикутника' },
+                    { label: 'Куля', val: 'Обертання півкруга навколо діаметра' }
+                ],
+                simType: 'rev_overview'
+            },
+            {
+                id: 'cylinder_cone',
+                title: 'Циліндр і Конус',
+                category: 'Тіла обертання',
+                color: 'rose',
+                x: 2200, y: 740,
+                parentId: 'solids_of_revolution',
+                icon: 'cone',
+                description: 'Циліндр має дві рівні паралельні круглі основи. Конус звужується від круглої основи до однієї точки (вершини).',
+                formulas: [
+                    { label: 'Об’єм циліндра', val: 'V = π · R² · h' },
+                    { label: 'Об’єм конуса', val: 'V = ⅓ · π · R² · h' }
+                ],
+                simType: 'cylinder3d',
+                params: [
+                    { id: 'radius', label: 'Радіус основи (R)', min: 25, max: 65, val: 45, unit: 'см' },
+                    { id: 'height', label: 'Висота (h)', min: 40, max: 120, val: 85, unit: 'см' },
+                    { id: 'isCone', label: 'Форма (0=Циліндр, 1=Конус)', min: 0, max: 1, val: 0, unit: '' }
+                ]
+            },
+            {
+                id: 'sphere',
+                title: 'Куля та Сфера',
+                category: 'Тіла обертання',
+                color: 'rose',
+                x: 2200, y: 950,
+                parentId: 'solids_of_revolution',
+                icon: 'globe',
+                description: 'Сфера — замкнена поверхня, усі точки якої однаково віддалені від центра. Куля — тіло, обмежене сферою.',
+                formulas: [
+                    { label: 'Об’єм кулі', val: 'V = (4/3) · π · R³' },
+                    { label: 'Площа сфери', val: 'S = 4 · π · R²' }
+                ],
+                simType: 'sphere3d',
+                params: [
+                    { id: 'radius', label: 'Радіус (R)', min: 30, max: 80, val: 60, unit: 'см' }
+                ]
+            },
+
+            // --- ГІЛКА 3: БАЗОВІ ЕЛЕМЕНТИ ТА ВЛАСТИВОСТІ ---
+            {
+                id: 'basics',
+                title: 'Базові елементи та Кути',
+                category: 'Аксіоми та поняття',
+                color: 'purple',
+                x: 1200, y: 1280,
+                parentId: 'root',
+                icon: 'compass',
+                description: 'Фундаментальні цеглинки геометрії: точка, пряма, промінь, відрізок та кути, які вони утворюють.',
+                formulas: [
+                    { label: 'Гострий кут', val: '0° < α < 90°' },
+                    { label: 'Прямий кут', val: 'α = 90°' },
+                    { label: 'Тупий кут', val: '90° < α < 180°' },
+                    { label: 'Розгорнутий кут', val: 'α = 180°' }
+                ],
+                simType: 'angles',
+                params: [
+                    { id: 'angle', label: 'Величина кута (α)', min: 10, max: 180, val: 60, unit: '°' }
+                ]
+            }
+        ];
+
+        // Кольорові палітри для вузлів
+        const colorStyles = {
+            sky: { bg: 'bg-sky-950/90', border: 'border-sky-500/50', text: 'text-sky-400', stroke: '#0ea5e9', badge: 'bg-sky-500/20 text-sky-300 border-sky-500/30' },
+            emerald: { bg: 'bg-emerald-950/90', border: 'border-emerald-500/50', text: 'text-emerald-400', stroke: '#10b981', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+            teal: { bg: 'bg-teal-950/90', border: 'border-teal-500/50', text: 'text-teal-400', stroke: '#14b8a6', badge: 'bg-teal-500/20 text-teal-300 border-teal-500/30' },
+            amber: { bg: 'bg-amber-950/90', border: 'border-amber-500/50', text: 'text-amber-400', stroke: '#f59e0b', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+            orange: { bg: 'bg-orange-950/90', border: 'border-orange-500/50', text: 'text-orange-400', stroke: '#f97316', badge: 'bg-orange-500/20 text-orange-300 border-orange-500/30' },
+            rose: { bg: 'bg-rose-950/90', border: 'border-rose-500/50', text: 'text-rose-400', stroke: '#f43f5e', badge: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+            purple: { bg: 'bg-purple-950/90', border: 'border-purple-500/50', text: 'text-purple-400', stroke: '#a855f7', badge: 'bg-purple-500/20 text-purple-300 border-purple-500/30' }
+        };
+
+        // ==========================================
+        // 2. СТАН ДОДАТКУ ТА PAN/ZOOM КАРТИ
+        // ==========================================
+        let activeNodeId = 'root';
+        let currentParams = {};
+        let animFrameId = null;
+        let autoRotateAngle = 0;
+
+        // Змінні для перетягування та масштабування карти
+        const viewport = document.getElementById('canvasViewport');
+        const world = document.getElementById('mindmapWorld');
+        let scale = 0.85;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let startDragX = 0;
+        let startDragY = 0;
+
+        function updateWorldTransform() {
+            world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        }
+
+        function centerOnNode(nodeId, instant = false) {
+            const node = knowledgeData.find(n => n.id === nodeId);
+            if (!node) return;
+            const vpRect = viewport.getBoundingClientRect();
+            panX = (vpRect.width / 2) - (node.x * scale);
+            panY = (vpRect.height / 2) - (node.y * scale);
+            
+            if (instant) {
+                world.style.transition = 'none';
+                updateWorldTransform();
+                setTimeout(() => world.style.transition = 'transform 0.1s ease-out', 50);
+            } else {
+                world.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+                updateWorldTransform();
+                setTimeout(() => world.style.transition = 'transform 0.05s linear', 400);
+            }
+        }
+
+        // Обробка миші для Pan
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.node-card')) return;
+            isDragging = true;
+            startDragX = e.clientX - panX;
+            startDragY = e.clientY - panY;
+            world.style.transition = 'none';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panX = e.clientX - startDragX;
+            panY = e.clientY - startDragY;
+            updateWorldTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Сенсорне керування (Touch) для мобільних пристроїв
+        viewport.addEventListener('touchstart', (e) => {
+            if (e.target.closest('.node-card') || e.touches.length !== 1) return;
+            isDragging = true;
+            startDragX = e.touches[0].clientX - panX;
+            startDragY = e.touches[0].clientY - panY;
+            world.style.transition = 'none';
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging || e.touches.length !== 1) return;
+            panX = e.touches[0].clientX - startDragX;
+            panY = e.touches[0].clientY - startDragY;
+            updateWorldTransform();
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Масштабування колесом миші
+        viewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSensitivity = 0.001;
+            const delta = -e.deltaY * zoomSensitivity;
+            const newScale = Math.min(Math.max(0.4, scale + delta), 1.6);
+            
+            const rect = viewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Масштабування відносно курсора
+            panX = mouseX - (mouseX - panX) * (newScale / scale);
+            panY = mouseY - (mouseY - panY) * (newScale / scale);
+            scale = newScale;
+            
+            world.style.transition = 'none';
+            updateWorldTransform();
+        }, { passive: false });
+
+        // Кнопки масштабування
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            scale = Math.min(1.6, scale + 0.15);
+            centerOnNode(activeNodeId);
+        });
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            scale = Math.max(0.4, scale - 0.15);
+            centerOnNode(activeNodeId);
+        });
+        document.getElementById('btnResetView').addEventListener('click', () => {
+            scale = 0.85;
+            centerOnNode('root');
+        });
+
+        // ==========================================
+        // 3. РЕНДЕРИНГ КАРТИ ЗНАНЬ (ВУЗЛИ ТА ЛІНІЇ)
+        // ==========================================
+        function renderMindMap() {
+            const svgLayer = document.getElementById('connectionsLayer');
+            const nodesLayer = document.getElementById('nodesLayer');
+            svgLayer.innerHTML = '';
+            nodesLayer.innerHTML = '';
+
+            // 1. Малюємо криві Безьє між батьківськими та дочірніми вузлами
+            knowledgeData.forEach(node => {
+                if (!node.parentId) return;
+                const parent = knowledgeData.find(n => n.id === node.parentId);
+                if (!parent) return;
+
+                const style = colorStyles[node.color] || colorStyles.sky;
+                const isHighlighted = (node.id === activeNodeId || parent.id === activeNodeId);
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                // Плавна S-подібна крива
+                const midX = (parent.x + node.x) / 2;
+                const d = `M ${parent.x} ${parent.y} C ${midX} ${parent.y}, ${midX} ${node.y}, ${node.x} ${node.y}`;
+                
+                path.setAttribute('d', d);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', isHighlighted ? style.stroke : '#334155');
+                path.setAttribute('stroke-width', isHighlighted ? '3.5' : '2');
+                if (isHighlighted) {
+                    path.classList.add('animate-line');
+                }
+                svgLayer.appendChild(path);
+            });
+
+            // 2. Створюємо HTML-картки вузлів
+            knowledgeData.forEach(node => {
+                const style = colorStyles[node.color] || colorStyles.sky;
+                const isRoot = node.id === 'root';
+                const isActive = node.id === activeNodeId;
+
+                const el = document.createElement('div');
+                el.style.left = `${node.x}px`;
+                el.style.top = `${node.y}px`;
+                el.dataset.id = node.id;
+
+                el.className = `node-card absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-2xl border backdrop-blur-md shadow-xl flex items-center gap-3 
+                    ${style.bg} ${style.border} ${isActive ? 'active' : ''} 
+                    ${isRoot ? 'px-6 py-4 scale-110' : 'px-4 py-3'}`;
+
+                el.innerHTML = `
+                    <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/80 ${style.text}">
+                        <i data-lucide="${node.icon}" class="${isRoot ? 'w-6 h-6' : 'w-5 h-5'}"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-semibold uppercase tracking-wider opacity-75 ${style.text}">${node.category}</div>
+                        <div class="font-bold ${isRoot ? 'text-lg' : 'text-sm'} text-white whitespace-nowrap">${node.title}</div>
+                    </div>
+                `;
+
+                el.addEventListener('click', () => selectNode(node.id));
+                nodesLayer.appendChild(el);
+            });
+
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 4. ВИБІР ВУЗЛА ТА ОНОВЛЕННЯ ІНСПЕКТОРА
+        // ==========================================
+        function selectNode(nodeId) {
+            activeNodeId = nodeId;
+            const node = knowledgeData.find(n => n.id === nodeId);
+            if (!node) return;
+
+            // Перемальовуємо карту для підсвічування активних ліній
+            renderMindMap();
+
+            // Відкриваємо панель на мобільних пристроях
+            const panel = document.getElementById('inspectorPanel');
+            panel.classList.remove('translate-x-full');
+
+            // Заповнюємо текстову інформацію
+            const style = colorStyles[node.color] || colorStyles.sky;
+            const badge = document.getElementById('nodeCategoryBadge');
+            badge.textContent = node.category;
+            badge.className = `text-[11px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${style.badge}`;
+
+            document.getElementById('nodeTitle').textContent = node.title;
+            document.getElementById('nodeDescription').textContent = node.description;
+
+            // Формули
+            const formulasList = document.getElementById('formulasList');
+            formulasList.innerHTML = node.formulas.map(f => `
+                <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span class="text-xs text-slate-400">${f.label}</span>
+                    <span class="text-sm font-mono font-semibold text-sky-300 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-800">${f.val}</span>
+                </div>
+            `).join('');
+
+            // Пов'язані теми (батьківський + дочірні вузли)
+            const relatedChips = document.getElementById('relatedChips');
+            const relatedNodes = knowledgeData.filter(n => n.parentId === node.id || n.id === node.parentId);
+            relatedChips.innerHTML = relatedNodes.map(rn => `
+                <button onclick="selectNode('${rn.id}'); centerOnNode('${rn.id}')" 
+                    class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5">
+                    <i data-lucide="${rn.icon}" class="w-3.5 h-3.5 text-sky-400"></i>
+                    ${rn.title}
+                </button>
+            `).join('');
+
+            // Налаштування повзунків симулятора
+            const controlsContainer = document.getElementById('controlsContainer');
+            currentParams = {};
+
+            if (node.params && node.params.length > 0) {
+                controlsContainer.classList.remove('hidden');
+                controlsContainer.innerHTML = node.params.map(p => {
+                    currentParams[p.id] = p.val;
+                    return `
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5">
+                                <span class="text-slate-300 font-medium">${p.label}</span>
+                                <span id="val_${p.id}" class="font-mono text-sky-400 font-semibold">${p.val} ${p.unit}</span>
+                            </div>
+                            <input type="range" id="param_${p.id}" min="${p.min}" max="${p.max}" value="${p.val}" step="1" class="w-full">
+                        </div>
+                    `;
+                }).join('');
+
+                // Додаємо слухачі подій для повзунків
+                node.params.forEach(p => {
+                    const slider = document.getElementById(`param_${p.id}`);
+                    slider.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        currentParams[p.id] = val;
+                        document.getElementById(`val_${p.id}`).textContent = `${val} ${p.unit}`;
+                        updateCalculations(node);
+                    });
+                });
+            } else {
+                controlsContainer.classList.add('hidden');
+            }
+
+            updateCalculations(node);
+            lucide.createIcons();
+        }
+
+        document.getElementById('closeInspector').addEventListener('click', () => {
+            document.getElementById('inspectorPanel').classList.add('translate-x-full');
+        });
+
+        // ==========================================
+        // 5. ЖИВІ МАТЕМАТИЧНІ РОЗРАХУНКИ
+        // ==========================================
+        function updateCalculations(node) {
+            const calcBox = document.getElementById('calculationsContainer');
+            let metrics = [];
+
+            if (node.simType === 'triangle') {
+                const a = currentParams.base;
+                const h = currentParams.height;
+                const skew = currentParams.skew;
+                const s = 0.5 * a * h;
+                // Обчислюємо бічні сторони за теоремою Піфагора
+                const leftProj = (a / 2) + skew;
+                const rightProj = (a / 2) - skew;
+                const b = Math.sqrt(leftProj * leftProj + h * h);
+                const c = Math.sqrt(rightProj * rightProj + h * h);
+                const p = a + b + c;
+                metrics = [
+                    { label: 'Площа (S)', value: `${s.toFixed(1)} см²`, color: 'text-emerald-400' },
+                    { label: 'Периметр (P)', value: `${p.toFixed(1)} см`, color: 'text-sky-400' }
+                ];
+            } else if (node.simType === 'rectangle') {
+                const a = currentParams.width;
+                const b = currentParams.height;
+                const s = a * b;
+                const p = 2 * (a + b);
+                const d = Math.sqrt(a * a + b * b);
+                const typeName = (a === b) ? 'Квадрат!' : 'Прямокутник';
+                metrics = [
+                    { label: `Площа (${typeName})`, value: `${s} см²`, color: 'text-emerald-400' },
+                    { label: 'Периметр / Діаг.', value: `${p} / ${d.toFixed(1)} см`, color: 'text-sky-400' }
+                ];
+            } else if (node.simType === 'parallelogram') {
+                const a = currentParams.side;
+                const h = currentParams.height;
+                const rad = (currentParams.angle * Math.PI) / 180;
+                const b = h / Math.sin(rad); // бічна сторона
+                const s = a * h;
+                const p = 2 * (a + b);
+                metrics = [
+                    { label: 'Площа (S = a·h)', value: `${s.toFixed(0)} см²`, color: 'text-emerald-400' },
+                    { label: 'Периметр (P)', value: `${p.toFixed(1)} см`, color: 'text-sky-400' }
+                ];
+            } else if (node.simType === 'circle') {
+                const r = currentParams.radius;
+                const s = Math.PI * r * r;
+                const c = 2 * Math.PI * r;
+                metrics = [
+                    { label: 'Площа круга (S)', value: `${s.toFixed(1)} см²`, color: 'text-emerald-400' },
+                    { label: 'Довжина кола (C)', value: `${c.toFixed(1)} см`, color: 'text-sky-400' }
+                ];
+            } else if (node.simType === 'cube3d') {
+                const a = currentParams.size;
+                const v = Math.pow(a, 3);
+                const s = 6 * a * a;
+                metrics = [
+                    { label: 'Об’єм куба (V)', value: `${(v / 1000).toFixed(2)} л (${v} см³)`, color: 'text-amber-400' },
+                    { label: 'Площа поверхні (S)', value: `${s} см²`, color: 'text-orange-400' }
+                ];
+            } else if (node.simType === 'pyramid3d') {
+                const a = currentParams.base;
+                const h = currentParams.height;
+                const sBase = a * a;
+                const v = (1 / 3) * sBase * h;
+                metrics = [
+                    { label: 'Об’єм піраміди (V)', value: `${v.toFixed(0)} см³`, color: 'text-amber-400' },
+                    { label: 'Площа основи (Sосн)', value: `${sBase} см²`, color: 'text-orange-400' }
+                ];
+            } else if (node.simType === 'cylinder3d') {
+                const r = currentParams.radius;
+                const h = currentParams.height;
+                const isCone = currentParams.isCone === 1;
+                const v = isCone ? (1 / 3) * Math.PI * r * r * h : Math.PI * r * r * h;
+                metrics = [
+                    { label: isCone ? 'Об’єм конуса (V)' : 'Об’єм циліндра (V)', value: `${v.toFixed(0)} см³`, color: 'text-rose-400' },
+                    { label: 'Площа основи', value: `${(Math.PI * r * r).toFixed(0)} см²`, color: 'text-amber-400' }
+                ];
+            } else if (node.simType === 'sphere3d') {
+                const r = currentParams.radius;
+                const v = (4 / 3) * Math.PI * Math.pow(r, 3);
+                const s = 4 * Math.PI * r * r;
+                metrics = [
+                    { label: 'Об’єм кулі (V)', value: `${v.toFixed(0)} см³`, color: 'text-rose-400' },
+                    { label: 'Площа сфери (S)', value: `${s.toFixed(0)} см²`, color: 'text-amber-400' }
+                ];
+            } else if (node.simType === 'angles') {
+                const deg = currentParams.angle;
+                let type = 'Гострий кут';
+                if (deg === 90) type = 'Прямий кут (90°)';
+                else if (deg > 90 && deg < 180) type = 'Тупий кут';
+                else if (deg === 180) type = 'Розгорнутий кут';
+                const rad = (deg * Math.PI / 180).toFixed(2);
+                metrics = [
+                    { label: 'Тип кута', value: type, color: 'text-purple-400' },
+                    { label: 'У радіанах', value: `${rad} рад`, color: 'text-sky-400' }
+                ];
+            }
+
+            if (metrics.length > 0) {
+                calcBox.classList.remove('hidden');
+                calcBox.innerHTML = metrics.map(m => `
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                        <div class="text-[11px] text-slate-400 mb-0.5">${m.label}</div>
+                        <div class="text-sm font-bold ${m.color}">${m.value}</div>
+                    </div>
+                `).join('');
+            } else {
+                calcBox.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // 6. ГРАФІЧНИЙ РУШІЙ СИМУЛЯТОРА (2D / 3D CANVAS)
+        // ==========================================
+        const simCanvas = document.getElementById('simCanvas');
+        const ctx = simCanvas.getContext('2d');
+
+        // Допоміжна функція 3D проекції точок
+        function project3D(x, y, z, rotX, rotY, cx, cy) {
+            const radX = (rotX * Math.PI) / 180;
+            const radY = (rotY * Math.PI) / 180;
+
+            // Обертання навколо Y
+            let x1 = x * Math.cos(radY) - z * Math.sin(radY);
+            let z1 = z * Math.cos(radY) + x * Math.sin(radY);
+
+            // Обертання навколо X
+            let y2 = y * Math.cos(radX) - z1 * Math.sin(radX);
+            let z2 = z1 * Math.cos(radX) + y * Math.sin(radX);
+
+            const fov = 350;
+            const scale = fov / (fov + z2);
+            return {
+                x: cx + x1 * scale,
+                y: cy + y2 * scale
+            };
+        }
+
+        function renderSimulatorLoop() {
+            const node = knowledgeData.find(n => n.id === activeNodeId);
+            ctx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const cx = simCanvas.width / 2;
+            const cy = simCanvas.height / 2;
+            autoRotateAngle += 0.6;
+
+            // Сітка на фоні міні-симулятора
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < simCanvas.width; i += 20) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, simCanvas.height); ctx.stroke();
+            }
+            for (let j = 0; j < simCanvas.height; j += 20) {
+                ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(simCanvas.width, j); ctx.stroke();
+            }
+
+            if (!node) return;
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            switch (node.simType) {
+                case 'triangle': {
+                    const a = currentParams.base;
+                    const h = currentParams.height;
+                    const skew = currentParams.skew;
+
+                    const x1 = cx - a / 2, y1 = cy + h / 2;
+                    const x2 = cx + a / 2, y2 = cy + h / 2;
+                    const x3 = cx + skew, y3 = cy - h / 2;
+
+                    // Заливка
+                    ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+                    // Пунктирна висота h
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(x3, y3); ctx.lineTo(x3, y1);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Підписи
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '11px Inter';
+                    ctx.fillText(`a = ${a}`, cx - 15, y1 + 15);
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillText(`h = ${h}`, x3 + 5, cy);
+                    break;
+                }
+
+                case 'rectangle': {
+                    const w = currentParams.width;
+                    const h = currentParams.height;
+                    const x = cx - w / 2, y = cy - h / 2;
+
+                    ctx.fillStyle = 'rgba(20, 184, 166, 0.15)';
+                    ctx.strokeStyle = '#14b8a6';
+                    ctx.lineWidth = 2.5;
+                    ctx.fillRect(x, y, w, h);
+                    ctx.strokeRect(x, y, w, h);
+
+                    // Діагональ
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x + w, y); ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Прямий кут
+                    ctx.strokeStyle = '#14b8a6';
+                    ctx.strokeRect(x, y + h - 12, 12, 12);
+
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '11px Inter';
+                    ctx.fillText(`a = ${w}`, cx - 15, y + h + 15);
+                    ctx.fillText(`b = ${h}`, x - 42, cy);
+                    break;
+                }
+
+                case 'parallelogram': {
+                    const a = currentParams.side;
+                    const h = currentParams.height;
+                    const rad = (currentParams.angle * Math.PI) / 180;
+                    const shift = h / Math.tan(rad);
+
+                    const x1 = cx - a / 2 - shift / 2, y1 = cy + h / 2;
+                    const x2 = x1 + a, y2 = y1;
+                    const x3 = x2 + shift, y3 = cy - h / 2;
+                    const x4 = x1 + shift, y4 = y3;
+
+                    ctx.fillStyle = 'rgba(20, 184, 166, 0.15)';
+                    ctx.strokeStyle = '#14b8a6';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.lineTo(x4, y4);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+                    // Висота
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.beginPath(); ctx.moveTo(x4, y4); ctx.lineTo(x4, y1); ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = '11px Inter';
+                    ctx.fillText(`h=${h}`, x4 + 4, cy);
+                    break;
+                }
+
+                case 'circle': {
+                    const r = currentParams.radius;
+                    ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.fill(); ctx.stroke();
+
+                    // Радіус
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
+
+                    // Центр
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '11px Inter';
+                    ctx.fillText(`R = ${r}`, cx + r / 2 - 15, cy - 6);
+                    break;
+                }
+
+                case 'angles': {
+                    const deg = currentParams.angle;
+                    const rad = (deg * Math.PI) / 180;
+                    const len = 100;
+                    const ox = cx - 30, oy = cy + 35;
+
+                    // Промінь 1 (горизонтальний)
+                    ctx.strokeStyle = '#a855f7';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + len, oy); ctx.stroke();
+
+                    // Промінь 2 (під кутом)
+                    const ex = ox + len * Math.cos(-rad);
+                    const ey = oy + len * Math.sin(-rad);
+                    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+
+                    // Дуга кута
+                    ctx.fillStyle = 'rgba(168, 85, 247, 0.25)';
+                    ctx.beginPath();
+                    ctx.moveTo(ox, oy);
+                    ctx.arc(ox, oy, 35, -rad, 0);
+                    ctx.closePath(); ctx.fill();
+
+                    ctx.fillStyle = '#e9d5ff';
+                    ctx.font = 'bold 12px Inter';
+                    ctx.fillText(`${deg}°`, ox + 40, oy - 12);
+                    break;
+                }
+
+                case 'cube3d': {
+                    const s = currentParams.size / 1.3;
+                    const rotY = currentParams.rotY;
+                    const rotX = currentParams.rotX;
+
+                    const vertices = [
+                        [-s, -s, -s], [s, -s, -s], [s, s, -s], [-s, s, -s],
+                        [-s, -s, s],  [s, -s, s],  [s, s, s],  [-s, s, s]
+                    ];
+                    const edges = [
+                        [0,1], [1,2], [2,3], [3,0],
+                        [4,5], [5,6], [6,7], [7,4],
+                        [0,4], [1,5], [2,6], [3,7]
+                    ];
+
+                    const projected = vertices.map(v => project3D(v[0], v[1], v[2], rotX, rotY, cx, cy));
+
+                    ctx.strokeStyle = '#f97316';
+                    ctx.lineWidth = 2;
+                    edges.forEach(([i, j]) => {
+                        ctx.beginPath();
+                        ctx.moveTo(projected[i].x, projected[i].y);
+                        ctx.lineTo(projected[j].x, projected[j].y);
+                        ctx.stroke();
+                    });
+
+                    // Вершини
+                    ctx.fillStyle = '#fdba74';
+                    projected.forEach(p => {
+                        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+                    });
+                    break;
+                }
+
+                case 'pyramid3d': {
+                    const b = currentParams.base / 1.4;
+                    const h = currentParams.height / 1.3;
+                    const rotY = currentParams.rotY;
+
+                    const vertices = [
+                        [-b, h/2, -b], [b, h/2, -b], [b, h/2, b], [-b, h/2, b], // основа
+                        [0, -h/2, 0] // вершина
+                    ];
+                    const edges = [
+                        [0,1], [1,2], [2,3], [3,0],
+                        [0,4], [1,4], [2,4], [3,4]
+                    ];
+
+                    const projected = vertices.map(v => project3D(v[0], v[1], v[2], 20, rotY, cx, cy));
+
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 2;
+                    edges.forEach(([i, j]) => {
+                        ctx.beginPath();
+                        ctx.moveTo(projected[i].x, projected[i].y);
+                        ctx.lineTo(projected[j].x, projected[j].y);
+                        ctx.stroke();
+                    });
+                    break;
+                }
+
+                case 'cylinder3d': {
+                    const r = currentParams.radius;
+                    const h = currentParams.height;
+                    const isCone = currentParams.isCone === 1;
+                    const ry = r * 0.35; // перспектива еліпса
+
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.15)';
+                    ctx.lineWidth = 2;
+
+                    const topY = cy - h / 2;
+                    const botY = cy + h / 2;
+
+                    // Нижня основа
+                    ctx.beginPath();
+                    ctx.ellipse(cx, botY, r, ry, 0, 0, Math.PI * 2);
+                    ctx.fill(); ctx.stroke();
+
+                    if (isCone) {
+                        // Конус
+                        ctx.beginPath();
+                        ctx.moveTo(cx - r, botY);
+                        ctx.lineTo(cx, topY);
+                        ctx.lineTo(cx + r, botY);
+                        ctx.stroke();
+                    } else {
+                        // Циліндр
+                        ctx.beginPath();
+                        ctx.ellipse(cx, topY, r, ry, 0, 0, Math.PI * 2);
+                        ctx.fill(); ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.moveTo(cx - r, topY); ctx.lineTo(cx - r, botY);
+                        ctx.moveTo(cx + r, topY); ctx.lineTo(cx + r, botY);
+                        ctx.stroke();
+                    }
+                    break;
+                }
+
+                case 'sphere3d': {
+                    const r = currentParams.radius;
+                    // Градієнт кулі
+                    const grad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.1, cx, cy, r);
+                    grad.addColorStop(0, '#fda4af');
+                    grad.addColorStop(0.5, '#e11d48');
+                    grad.addColorStop(1, '#4c0519');
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Екватор
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, r, r * 0.3, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    break;
+                }
+
+                default: {
+                    // Оглядова анімація для категорій
+                    const rot = autoRotateAngle;
+                    const s = 45;
+                    const vertices = [
+                        [-s, -s, -s], [s, -s, -s], [s, s, -s], [-s, s, -s],
+                        [-s, -s, s],  [s, -s, s],  [s, s, s],  [-s, s, s]
+                    ];
+                    const edges = [
+                        [0,1], [1,2], [2,3], [3,0],
+                        [4,5], [5,6], [6,7], [7,4],
+                        [0,4], [1,5], [2,6], [3,7]
+                    ];
+                    const projected = vertices.map(v => project3D(v[0], v[1], v[2], 25, rot, cx, cy));
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2;
+                    edges.forEach(([i, j]) => {
+                        ctx.beginPath();
+                        ctx.moveTo(projected[i].x, projected[i].y);
+                        ctx.lineTo(projected[j].x, projected[j].y);
+                        ctx.stroke();
+                    });
+                    break;
+                }
+            }
+
+            animFrameId = requestAnimationFrame(renderSimulatorLoop);
+        }
+
+        // ==========================================
+        // 7. ПОШУК ПО КАРТІ ЗНАНЬ
+        // ==========================================
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            if (!query) return;
+
+            const found = knowledgeData.find(n => 
+                n.title.toLowerCase().includes(query) || 
+                n.description.toLowerCase().includes(query)
+            );
+
+            if (found) {
+                selectNode(found.id);
+                centerOnNode(found.id);
+            }
+        });
+
+        // ==========================================
+        // 8. ІНТЕРАКТИВНА ВІКТОРИНА (ТРЕНАЖЕР)
+        // ==========================================
+        const quizQuestions = [
+            {
+                q: "Чому дорівнює сума внутрішніх кутів будь-якого трикутника на площині?",
+                options: ["90°", "180°", "270°", "360°"],
+                correct: 1,
+                explanation: "Сума кутів трикутника в евклідовій геометрії завжди становить 180°."
+            },
+            {
+                q: "Яка формула використовується для обчислення об’єму кулі?",
+                options: ["V = π · R² · h", "V = 4 · π · R²", "V = (4/3) · π · R³", "V = ⅓ · Sосн · h"],
+                correct: 2,
+                explanation: "Об’єм кулі обчислюється за формулою V = (4/3) · π · R³, а 4 · π · R² — це площа сфери."
+            },
+            {
+                q: "Як називається паралелограм, у якого всі сторони рівні?",
+                options: ["Трапеція", "Ромб", "Прямокутник", "Піраміда"],
+                correct: 1,
+                explanation: "Ромб — це паралелограм, усі чотири сторони якого мають однакову довжину."
+            },
+            {
+                q: "Обертанням якої фігури навколо катета утворюється прямий круговий конус?",
+                options: ["Прямокутника", "Півкруга", "Прямокутного трикутника", "Трапеції"],
+                correct: 2,
+                explanation: "Конус утворюється при обертанні прямокутного трикутника навколо одного з його катетів."
+            },
+            {
+                q: "Скільки граней має прямокутний паралелепіпед (або куб)?",
+                options: ["4", "6", "8", "12"],
+                correct: 1,
+                explanation: "Куб та паралелепіпед мають 6 граней, 8 вершин і 12 ребер."
+            }
+        ];
+
+        let currentQIndex = 0;
+        let score = 0;
+        let answered = false;
+
+        const quizModal = document.getElementById('quizModal');
+        document.getElementById('btnQuiz').addEventListener('click', () => {
+            currentQIndex = 0;
+            score = 0;
+            quizModal.classList.remove('hidden');
+            loadQuestion();
+        });
+
+        document.getElementById('closeQuiz').addEventListener('click', () => {
+            quizModal.classList.add('hidden');
+        });
+
+        function loadQuestion() {
+            answered = false;
+            const qData = quizQuestions[currentQIndex];
+            document.getElementById('quizProgress').textContent = `Питання ${currentQIndex + 1} з ${quizQuestions.length}`;
+            document.getElementById('quizScore').textContent = `Бали: ${score}`;
+            document.getElementById('quizProgressBar').style.width = `${((currentQIndex + 1) / quizQuestions.length) * 100}%`;
+            document.getElementById('quizQuestion').textContent = qData.q;
+            
+            const feedback = document.getElementById('quizFeedback');
+            feedback.classList.add('hidden');
+            document.getElementById('nextQuestionBtn').classList.add('hidden');
+
+            const optionsBox = document.getElementById('quizOptions');
+            optionsBox.innerHTML = qData.options.map((opt, idx) => `
+                <button onclick="handleAnswer(${idx})" id="opt_${idx}"
+                    class="w-full text-left p-3.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-sm text-slate-200 transition-all">
+                    ${opt}
+                </button>
+            `).join('');
+        }
+
+        window.handleAnswer = function(selectedIndex) {
+            if (answered) return;
+            answered = true;
+
+            const qData = quizQuestions[currentQIndex];
+            const feedback = document.getElementById('quizFeedback');
+            const nextBtn = document.getElementById('nextQuestionBtn');
+
+            if (selectedIndex === qData.correct) {
+                score++;
+                document.getElementById(`opt_${selectedIndex}`).className = "w-full text-left p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500 text-sm text-emerald-300 font-medium";
+                feedback.className = "text-xs p-3 rounded-xl bg-emerald-950/80 border border-emerald-800 text-emerald-300 mb-4";
+                feedback.innerHTML = `<strong>Правильно!</strong> ${qData.explanation}`;
+            } else {
+                document.getElementById(`opt_${selectedIndex}`).className = "w-full text-left p-3.5 rounded-xl bg-rose-500/20 border border-rose-500 text-sm text-rose-300";
+                document.getElementById(`opt_${qData.correct}`).className = "w-full text-left p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500 text-sm text-emerald-300 font-medium";
+                feedback.className = "text-xs p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 mb-4";
+                feedback.innerHTML = `<strong>Помилка.</strong> ${qData.explanation}`;
+            }
+
+            document.getElementById('quizScore').textContent = `Бали: ${score}`;
+            feedback.classList.remove('hidden');
+            
+            nextBtn.textContent = (currentQIndex < quizQuestions.length - 1) ? "Наступне питання" : "Завершити тест";
+            nextBtn.classList.remove('hidden');
+        };
+
+        document.getElementById('nextQuestionBtn').addEventListener('click', () => {
+            currentQIndex++;
+            if (currentQIndex < quizQuestions.length) {
+                loadQuestion();
+            } else {
+                document.getElementById('quizOptions').innerHTML = `
+                    <div class="text-center py-6">
+                        <div class="text-4xl font-bold text-indigo-400 mb-2">${score} / ${quizQuestions.length}</div>
+                        <p class="text-sm text-slate-300">Тест завершено! Ви чудово орієнтуєтесь у геометричних фігурах.</p>
+                    </div>
+                `;
+                document.getElementById('quizQuestion').textContent = "Ваш результат:";
+                document.getElementById('quizFeedback').classList.add('hidden');
+                const nextBtn = document.getElementById('nextQuestionBtn');
+                nextBtn.textContent = "Пройти ще раз";
+                nextBtn.onclick = () => {
+                    currentQIndex = 0;
+                    score = 0;
+                    nextBtn.onclick = null;
+                    loadQuestion();
+                };
+            }
+        });
+
+        // ==========================================
+        // 9. ІНІЦІАЛІЗАЦІЯ ПРИ ЗАВАНТАЖЕННІ
+        // ==========================================
+        window.onload = function() {
+            renderMindMap();
+            selectNode('root');
+            centerOnNode('root', true);
+            renderSimulatorLoop();
+        };
+    </script>
+</body>
+</html>
